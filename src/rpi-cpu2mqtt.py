@@ -48,9 +48,8 @@ def check_wifi_signal(format):
         if format == 'dbm':
             wifi_signal = wifi_signal.decode("utf-8").strip().split(' ')[4].split('=')[1]
         else:
-            wifi_signal = wifi_signal.decode("utf-8").strip().split(' ')[1].split('=')[1].split('/')[0]
-            wifi_signal = round((int(wifi_signal) / 70)* 100)
-
+            wifi_signal, denominator = wifi_signal.decode("utf-8").strip().split(' ')[1].split('=')[1].split('/')
+            wifi_signal = round((int(wifi_signal) / int(denominator)) * 100)
     except Exception:
         wifi_signal = None if config.use_availability else 0
 
