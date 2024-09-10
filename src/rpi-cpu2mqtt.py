@@ -40,8 +40,7 @@ def get_translation(key):
 
 def check_wifi_signal(format):
     try:
-        full_cmd =  "ls /sys/class/ieee80211/*/device/net/"
-        interface = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0].strip().decode("utf-8")
+        interface = sorted([os.path.basename(x) for x in glob.glob('/sys/class/ieee80211/*/device/net/*')])[-1]
         full_cmd = "/sbin/iwconfig {} | grep -i quality".format(interface)
         wifi_signal = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
 
@@ -105,7 +104,7 @@ def check_rpi_power_status():
         full_cmd = "vcgencmd get_throttled | cut -d= -f2"
         throttled = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
         throttled = throttled.decode('utf-8').strip()
-        
+
         if throttled == "0x0":
             return "OK"
         else:
@@ -123,17 +122,17 @@ def check_crontab_entry(script_name="rpi-cpu2mqtt.py"):
     try:
         # Get the current user's crontab
         result = subprocess.run(['crontab', '-l'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
+
         # If the crontab command fails, it means there is no crontab for the user
         if result.returncode != 0:
             return False
-        
+
         # Check if the script name is in the crontab output
         return script_name in result.stdout
     except Exception as e:
         print(f"Error checking crontab: {e}")
         return False
-    
+
 
 def read_ext_sensors():
     """
@@ -149,7 +148,7 @@ def read_ext_sensors():
     # item[3] = value
     # now we iterate over the external sensors
     for item in config.ext_sensors:
-        # if it is a DS18B20 sensor 
+        # if it is a DS18B20 sensor
         if item[1] == "ds18b20":
             # if sensor ID in unknown, then we try to get it
             # this only works for a single DS18B20 sensor
@@ -192,7 +191,7 @@ def check_cpu_temp():
         else:
             raise ValueError("CPU temperature sensor not found.")
 
-        return round(cpu_temp, 2) 
+        return round(cpu_temp, 2)
     except Exception as e:
         print(f"Error reading CPU temperature: {e}")
         return None if config.use_availability else 0
@@ -248,7 +247,7 @@ def get_os():
         pretty_name = pretty_name.split('=')[1].replace('"', '').replace('\n', '')
     except Exception:
         pretty_name = None if config.use_availability else 'Unknown'
-        
+
     return(pretty_name)
 
 
@@ -262,7 +261,7 @@ def get_manufacturer():
             pretty_name = 'Raspberry Pi'
     except Exception:
         pretty_name = None if config.use_availability else 'Unknown'
-        
+
     return(pretty_name)
 
 
@@ -313,7 +312,7 @@ def get_apt_updates():
         subprocess.run(['sudo', 'apt', 'update'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         full_cmd = "apt-get -q -y --ignore-hold --allow-change-held-packages --allow-unauthenticated -s dist-upgrade | /bin/grep ^Inst | wc -l"
         result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
+
         updates_count = int(result.stdout.strip())
     except Exception as e:
         print(f"Error checking for updates: {e}")
@@ -405,13 +404,13 @@ def print_measured_values(monitored_values):
         output += "  Running as Service\n"
     if check_crontab_entry():
         output += "  Running as Cron Job\n"
-        
+
     output += """\n:: Installation directory :: {}
 
-:: Release notes {}: 
+:: Release notes {}:
 {}""".format(os.path.dirname(script_dir), remote_version, get_release_notes(remote_version))
     print(output)
-    
+
 
 def extract_text(html_string):
     html_string = html.unescape(html_string)
@@ -440,7 +439,7 @@ def get_release_notes(version):
     return release_notes
 
 
-def config_json(what_config, device="0", hass_api=False): 
+def config_json(what_config, device="0", hass_api=False):
     model_name = check_model_name()
     manufacturer = get_manufacturer()
     os = get_os()
@@ -617,7 +616,7 @@ def config_json(what_config, device="0", hass_api=False):
         # we define again the state topic in order to get a unique state topic if we have two sensors of the same type
         data["state_topic"] = config.mqtt_uns_structure + config.mqtt_topic_prefix + "/" + hostname + "/" + what_config + "_" + device
         data["unique_id"] = hostname + "_" + what_config + "_" + device
-    
+
     else:
         return ""
     # Return our built discovery config
@@ -637,14 +636,14 @@ def config_json(what_config, device="0", hass_api=False):
             "state_class": data["state_class"],
         }
         if "unit_of_measurement" in data:
-            result["unit_of_measurement"] = data["unit_of_measurement"]      
+            result["unit_of_measurement"] = data["unit_of_measurement"]
         if "device_class" in data:
             result["device_class"] = data["device_class"]
         if "unique_id" in data:
-            result["unique_id"] = data["unique_id"] 
+            result["unique_id"] = data["unique_id"]
         if "value_template" in data:
-            result["value_template"] = data["value_template"] 
-            
+            result["value_template"] = data["value_template"]
+
         return result
 
     return json.dumps(data)
@@ -760,7 +759,7 @@ def publish_to_mqtt(monitored_values):
                 client.publish(f"{config.mqtt_uns_structure}{config.mqtt_topic_prefix}/{hostname}/{key}_availability", 'offline' if value is None else 'online', qos=config.qos)
             client.publish(f"{config.mqtt_uns_structure}{config.mqtt_topic_prefix}/{hostname}/{key}", value, qos=config.qos, retain=config.retain)
 
-  # Publish non standard values    
+  # Publish non standard values
     if config.restart_button:
         if config.discovery_messages:
             client.publish(config.mqtt_discovery_prefix + "/button/" + config.mqtt_topic_prefix + "/" + hostname + "_restart/config",
@@ -816,11 +815,11 @@ def publish_to_mqtt(monitored_values):
                 client.publish(config.mqtt_uns_structure + config.mqtt_topic_prefix + "/" + hostname + "/" + "sht21_temp_status_" + item[0], item[3][0], qos=config.qos, retain=config.retain)
                 # humidity
                 client.publish(config.mqtt_uns_structure + config.mqtt_topic_prefix + "/" + hostname + "/" + "sht21_hum_status_" + item[0], item[3][1], qos=config.qos, retain=config.retain)
-                
+
     status_sensor_topic = config.mqtt_discovery_prefix + "/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_status/config"
     client.publish(status_sensor_topic, config_json('status'), qos=config.qos)
     client.publish(config.mqtt_uns_structure + config.mqtt_topic_prefix + "/" + hostname + "/status", "1", qos=config.qos, retain=config.retain)
-    
+
     while len(client._out_messages) > 0:
         time.sleep(0.1)
         client.loop()
@@ -886,7 +885,7 @@ def parse_arguments():
         exit()
 
     if args.hass_wake:
-        hass_config = """Add this to your Home Assistant switches.yaml file: 
+        hass_config = """Add this to your Home Assistant switches.yaml file:
 
   - platform: wake_on_lan
     mac: "{}"
@@ -904,7 +903,7 @@ def parse_arguments():
     return args
 
 
-def collect_monitored_values():    
+def collect_monitored_values():
     monitored_values = {}
 
     if config.cpu_load:
@@ -957,7 +956,7 @@ def collect_monitored_values():
 
 
 def gather_and_send_info():
-    while not stop_event.is_set():       
+    while not stop_event.is_set():
         monitored_values = collect_monitored_values()
 
         if hasattr(config, 'random_delay'):
